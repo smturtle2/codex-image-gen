@@ -46,7 +46,7 @@ payload를 전달한 뒤 디코딩된 이미지 bytes와 메타데이터를 Pyth
 </p>
 
 ```bash
-uv add "codex-image-gen @ git+https://github.com/smturtle2/codex-image-gen.git@v0.1.0"
+uv add codex-image-gen
 ```
 
 ```python
@@ -201,25 +201,18 @@ uv build
 | [Contributing](#development) | 로컬 개발 흐름 |
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | 버그 제보와 기능 요청 |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | 질문과 논의 |
+| [PyPI](https://pypi.org/project/codex-image-gen/) | 배포된 Python 패키지 |
 | [Release v0.1.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0) | wheel 및 sdist 아티팩트 |
 
 ## Release
 
-`v0.1.0`은 wheel과 sdist가 포함된 GitHub Release로 제공됩니다.
+`v0.1.0`은 PyPI와 wheel/sdist가 포함된 GitHub Release로 제공됩니다.
 
-PyPI trusted publisher가 설정되기 전까지는 GitHub에서 설치하세요:
+PyPI에서 설치하세요:
 
 ```bash
-uv add "codex-image-gen @ git+https://github.com/smturtle2/codex-image-gen.git@v0.1.0"
+uv add codex-image-gen
 ```
-
-PyPI publish는 GitHub Actions trusted publishing으로 연결되어 있습니다.
-PyPI에는 아래 trusted publisher 설정이 필요합니다:
-
-- owner: `smturtle2`
-- repository: `codex-image-gen`
-- workflow: `publish.yml`
-- environment: `pypi`
 
 ## License
 

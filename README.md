@@ -46,7 +46,7 @@ metadata.
 </p>
 
 ```bash
-uv add "codex-image-gen @ git+https://github.com/smturtle2/codex-image-gen.git@v0.1.0"
+uv add codex-image-gen
 ```
 
 ```python
@@ -203,25 +203,19 @@ uv build
 | [Contributing](#development) | Local development workflow |
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | Report bugs and request features |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | Ask questions |
+| [PyPI](https://pypi.org/project/codex-image-gen/) | Published Python package |
 | [Release v0.1.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0) | Wheel and sdist artifacts |
 
 ## Release
 
-`v0.1.0` is available as a GitHub Release with wheel and sdist artifacts.
+`v0.1.0` is available on PyPI and as a GitHub Release with wheel and sdist
+artifacts.
 
-Install from GitHub until the PyPI trusted publisher is configured:
+Install from PyPI:
 
 ```bash
-uv add "codex-image-gen @ git+https://github.com/smturtle2/codex-image-gen.git@v0.1.0"
+uv add codex-image-gen
 ```
-
-PyPI publishing is wired through GitHub Actions trusted publishing. The PyPI
-trusted publisher must be configured for:
-
-- owner: `smturtle2`
-- repository: `codex-image-gen`
-- workflow: `publish.yml`
-- environment: `pypi`
 
 ## License
 
