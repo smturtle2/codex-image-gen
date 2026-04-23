@@ -47,6 +47,9 @@ payload를 전달한 뒤 디코딩된 이미지 bytes와 메타데이터를 Pyth
 
 ```bash
 uv add codex-image-gen
+
+# 또는
+pip install codex-image-gen
 ```
 
 ```python
@@ -212,6 +215,9 @@ PyPI에서 설치하세요:
 
 ```bash
 uv add codex-image-gen
+
+# 또는
+pip install codex-image-gen
 ```
 
 ## License

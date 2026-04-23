@@ -47,6 +47,9 @@ metadata.
 
 ```bash
 uv add codex-image-gen
+
+# or
+pip install codex-image-gen
 ```
 
 ```python
@@ -215,6 +218,9 @@ Install from PyPI:
 
 ```bash
 uv add codex-image-gen
+
+# or
+pip install codex-image-gen
 ```
 
 ## License
