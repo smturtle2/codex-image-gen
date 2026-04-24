@@ -11,7 +11,7 @@
 
   <p>
     <a href="https://github.com/smturtle2/codex-image-gen/actions/workflows/workflow.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/smturtle2/codex-image-gen/workflow.yml?branch=main&label=tests"></a>
-    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
+    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/smturtle2/codex-image-gen"></a>
     <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
     <img alt="Model" src="https://img.shields.io/badge/gpt--image--2-enabled-6f42c1">
@@ -90,7 +90,7 @@ generate_image(
     prompt: str,
     *,
     images=None,
-    model="gpt-5.4",
+    model="gpt-5.5",
     size="auto",
     quality="auto",
     output_format="png",
@@ -100,6 +100,10 @@ generate_image(
     input_image_mask=None,
     moderation=None,
     partial_images=None,
+    reasoning_effort=None,
+    reasoning_summary=None,
+    text_verbosity=None,
+    max_output_tokens=None,
     instructions=None,
     timeout=300,
     codex_bin="codex",
@@ -112,7 +116,9 @@ generate_image(
 - mask edit는 `input_image_mask`를 사용합니다. mask는 로컬 경로, URL,
   `data:` URL, file ID로 전달할 수 있으며, 편집할 이미지와 같은 크기 및
   포맷이어야 하고 50MB 미만, alpha channel 포함이어야 합니다.
-- timeout, moderation, output format, compression, custom instructions를 일급 옵션으로 제공합니다.
+- reasoning effort, reasoning summary, text verbosity, max output tokens,
+  timeout, moderation, output format, compression, custom instructions를 일급
+  옵션으로 제공합니다.
 
 ## Examples
 
@@ -169,11 +175,27 @@ for partial in result.partial_images:
 partial image는 `codex responses`가 종료된 뒤 결과 객체에 수집됩니다. 이 함수는
 실시간 streaming callback을 제공하지 않습니다.
 
+### Reasoning Settings
+
+```python
+result = generate_image(
+    "Create a detailed concept sheet for a modular desk lamp",
+    reasoning_effort="high",
+    reasoning_summary="auto",
+    text_verbosity="low",
+    max_output_tokens=4096,
+)
+```
+
+`reasoning_effort`는 `none`, `minimal`, `low`, `medium`, `high`, `xhigh`를
+지원합니다. `text_verbosity`는 `low`, `medium`, `high`를 지원합니다.
+
 ## Compatibility
 
 이 라이브러리는 현재 `codex responses` bridge에서 라이브 테스트로 동작을 확인한
 파라미터만 노출합니다.
 
+- 기본 mainline Responses model은 `gpt-5.5`입니다.
 - 이미지 생성 도구에는 항상 `model="gpt-image-2"`를 보냅니다.
 - `input_image_mask`는 Responses `image_generation` tool에 문서화되어 있고
   Codex bridge에서 라이브 테스트를 통과했기 때문에 노출합니다. 이 라이브러리는
@@ -205,11 +227,11 @@ uv build
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | 버그 제보와 기능 요청 |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | 질문과 논의 |
 | [PyPI](https://pypi.org/project/codex-image-gen/) | 배포된 Python 패키지 |
-| [Release v0.1.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0) | wheel 및 sdist 아티팩트 |
+| [Release v0.1.1](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1) | wheel 및 sdist 아티팩트 |
 
 ## Release
 
-`v0.1.0`은 PyPI와 wheel/sdist가 포함된 GitHub Release로 제공됩니다.
+`v0.1.1`은 PyPI와 wheel/sdist가 포함된 GitHub Release로 제공됩니다.
 
 PyPI에서 설치하세요:
 

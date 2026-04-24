@@ -11,7 +11,7 @@
 
   <p>
     <a href="https://github.com/smturtle2/codex-image-gen/actions/workflows/workflow.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/smturtle2/codex-image-gen/workflow.yml?branch=main&label=tests"></a>
-    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
+    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/smturtle2/codex-image-gen"></a>
     <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
     <img alt="Model" src="https://img.shields.io/badge/gpt--image--2-enabled-6f42c1">
@@ -90,7 +90,7 @@ generate_image(
     prompt: str,
     *,
     images=None,
-    model="gpt-5.4",
+    model="gpt-5.5",
     size="auto",
     quality="auto",
     output_format="png",
@@ -100,6 +100,10 @@ generate_image(
     input_image_mask=None,
     moderation=None,
     partial_images=None,
+    reasoning_effort=None,
+    reasoning_summary=None,
+    text_verbosity=None,
+    max_output_tokens=None,
     instructions=None,
     timeout=300,
     codex_bin="codex",
@@ -113,7 +117,8 @@ generate_image(
 - Masked edits use `input_image_mask`; pass a mask as a local path, URL,
   `data:` URL, or file ID. The mask must match the edited image's dimensions
   and format, stay under 50 MB, and include an alpha channel.
-- Timeouts, moderation, output format, compression, and custom instructions are
+- Reasoning effort, reasoning summaries, text verbosity, max output tokens,
+  timeouts, moderation, output format, compression, and custom instructions are
   first-class options.
 
 ## Examples
@@ -171,11 +176,27 @@ for partial in result.partial_images:
 Partial images are collected after `codex responses` exits. This function does
 not expose live streaming callbacks.
 
+### Reasoning Settings
+
+```python
+result = generate_image(
+    "Create a detailed concept sheet for a modular desk lamp",
+    reasoning_effort="high",
+    reasoning_summary="auto",
+    text_verbosity="low",
+    max_output_tokens=4096,
+)
+```
+
+`reasoning_effort` supports `none`, `minimal`, `low`, `medium`, `high`, and
+`xhigh`. `text_verbosity` supports `low`, `medium`, and `high`.
+
 ## Compatibility
 
 This library intentionally exposes only the parameters that worked through the
 current `codex responses` bridge in live tests.
 
+- The default mainline Responses model is `gpt-5.5`.
 - The image generation tool always sends `model="gpt-image-2"`.
 - `input_image_mask` is exposed because it is documented for the Responses
   `image_generation` tool and was live-tested through the Codex bridge. The
@@ -207,11 +228,11 @@ uv build
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | Report bugs and request features |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | Ask questions |
 | [PyPI](https://pypi.org/project/codex-image-gen/) | Published Python package |
-| [Release v0.1.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.0) | Wheel and sdist artifacts |
+| [Release v0.1.1](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1) | Wheel and sdist artifacts |
 
 ## Release
 
-`v0.1.0` is available on PyPI and as a GitHub Release with wheel and sdist
+`v0.1.1` is available on PyPI and as a GitHub Release with wheel and sdist
 artifacts.
 
 Install from PyPI:

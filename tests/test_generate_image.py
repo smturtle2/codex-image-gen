@@ -122,7 +122,7 @@ def test_text_only_generation_builds_codex_responses_call_and_decodes_image(
 
     payload = _payload_from_call(calls)
     _assert_codex_payload_defaults(payload)
-    assert payload["model"] == "gpt-5.4"
+    assert payload["model"] == "gpt-5.5"
     assert _user_content(payload) == [
         {"type": "input_text", "text": "draw a red cube"}
     ]
@@ -174,6 +174,24 @@ def test_generate_image_signature_excludes_removed_image_tool_parameters():
     assert "image_generation_call_ids" not in signature.parameters
 
 
+def test_reasoning_and_text_options_are_forwarded(monkeypatch):
+    _, completed = _response_with_image()
+    calls = _mock_run(monkeypatch, completed)
+
+    codex_image_gen.generate_image(
+        "draw carefully",
+        reasoning_effort="high",
+        reasoning_summary="auto",
+        text_verbosity="low",
+        max_output_tokens=4096,
+    )
+
+    payload = _payload_from_call(calls)
+    assert payload["reasoning"] == {"effort": "high", "summary": "auto"}
+    assert payload["text"] == {"verbosity": "low"}
+    assert payload["max_output_tokens"] == 4096
+
+
 def test_all_gpt_image_2_tool_parameters_are_forwarded(monkeypatch, tmp_path):
     mask_path = tmp_path / "mask.png"
     mask_path.write_bytes(b"mask-bytes")
@@ -183,7 +201,7 @@ def test_all_gpt_image_2_tool_parameters_are_forwarded(monkeypatch, tmp_path):
     codex_image_gen.generate_image(
         "edit this product photo",
         images=["data:image/png;base64,AAAA"],
-        model="gpt-5.4",
+        model="gpt-custom",
         size="1024x1792",
         quality="high",
         output_format="webp",

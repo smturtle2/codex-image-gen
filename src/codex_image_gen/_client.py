@@ -22,7 +22,7 @@ from ._types import GeneratedImage, ImageGenerationResult, PartialGeneratedImage
 ImageInput = str | os.PathLike[str] | Mapping[str, str]
 MaskInput = str | os.PathLike[str] | Mapping[str, str]
 
-_DEFAULT_MODEL = "gpt-5.4"
+_DEFAULT_MODEL = "gpt-5.5"
 _IMAGE_MODEL = "gpt-image-2"
 _IMAGE_TOOL_TYPE = "image_generation"
 _DEFAULT_INSTRUCTIONS = (
@@ -45,6 +45,10 @@ def generate_image(
     input_image_mask: MaskInput | None = None,
     moderation: str | None = None,
     partial_images: int | None = None,
+    reasoning_effort: str | None = None,
+    reasoning_summary: str | None = None,
+    text_verbosity: str | None = None,
+    max_output_tokens: int | None = None,
     instructions: str | None = None,
     timeout: float | None = 300,
     codex_bin: str = "codex",
@@ -67,6 +71,10 @@ def generate_image(
         input_image_mask=input_image_mask,
         moderation=moderation,
         partial_images=partial_images,
+        reasoning_effort=reasoning_effort,
+        reasoning_summary=reasoning_summary,
+        text_verbosity=text_verbosity,
+        max_output_tokens=max_output_tokens,
         instructions=instructions,
     )
     raw_response = _run_codex_responses(payload, timeout=timeout, codex_bin=codex_bin)
@@ -90,6 +98,10 @@ def _build_payload(
     input_image_mask: MaskInput | None,
     moderation: str | None,
     partial_images: int | None,
+    reasoning_effort: str | None,
+    reasoning_summary: str | None,
+    text_verbosity: str | None,
+    max_output_tokens: int | None,
     instructions: str | None,
 ) -> dict[str, Any]:
     if background == "transparent":
@@ -123,6 +135,18 @@ def _build_payload(
         "stream": True,
         "store": False,
     }
+
+    reasoning: dict[str, str] = {}
+    if reasoning_effort is not None:
+        reasoning["effort"] = reasoning_effort
+    if reasoning_summary is not None:
+        reasoning["summary"] = reasoning_summary
+    if reasoning:
+        payload["reasoning"] = reasoning
+    if text_verbosity is not None:
+        payload["text"] = {"verbosity": text_verbosity}
+    if max_output_tokens is not None:
+        payload["max_output_tokens"] = max_output_tokens
     return payload
 
 
@@ -251,7 +275,7 @@ def _parse_codex_stream(stdout: str) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
     for raw_line in stdout.splitlines():
         line = raw_line.strip()
-        if not line:
+        if not line or line.startswith("event:"):
             continue
         if line.startswith("data:"):
             line = line.removeprefix("data:").strip()

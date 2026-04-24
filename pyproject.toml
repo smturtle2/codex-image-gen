@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codex-image-gen"
-version = "0.1.0"
+version = "0.1.1"
 description = "Generate images from Python through Codex's Responses API bridge."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,6 +39,9 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codex_image_gen"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/codex-image-gen-readme-showcase.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
