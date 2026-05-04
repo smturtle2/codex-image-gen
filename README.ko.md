@@ -11,9 +11,9 @@
 
   <p>
     <a href="https://github.com/smturtle2/codex-image-gen/actions/workflows/workflow.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/smturtle2/codex-image-gen/workflow.yml?branch=main&label=tests"></a>
-    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
+    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.1"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/smturtle2/codex-image-gen"></a>
-    <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
+    <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776ab">
     <img alt="Model" src="https://img.shields.io/badge/gpt--image--2-enabled-6f42c1">
     <img alt="Dependencies" src="https://img.shields.io/badge/dependencies-zero-2ea44f">
   </p>
@@ -219,11 +219,11 @@ uv build
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | 버그 제보와 기능 요청 |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | 질문과 논의 |
 | [PyPI](https://pypi.org/project/codex-image-gen/) | 배포된 Python 패키지 |
-| [Release v0.2.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0) | wheel 및 sdist 아티팩트 |
+| [Release v0.2.1](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.1) | wheel 및 sdist 아티팩트 |
 
 ## Release
 
-`v0.2.0`은 PyPI와 wheel/sdist가 포함된 GitHub Release로 제공됩니다.
+`v0.2.1`은 PyPI와 wheel/sdist가 포함된 GitHub Release로 제공됩니다.
 
 PyPI에서 설치하세요:
 

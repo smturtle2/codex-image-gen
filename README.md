@@ -11,9 +11,9 @@
 
   <p>
     <a href="https://github.com/smturtle2/codex-image-gen/actions/workflows/workflow.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/smturtle2/codex-image-gen/workflow.yml?branch=main&label=tests"></a>
-    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
+    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.1"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/smturtle2/codex-image-gen"></a>
-    <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
+    <img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776ab">
     <img alt="Model" src="https://img.shields.io/badge/gpt--image--2-enabled-6f42c1">
     <img alt="Dependencies" src="https://img.shields.io/badge/dependencies-zero-2ea44f">
   </p>
@@ -222,11 +222,11 @@ uv build
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | Report bugs and request features |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | Ask questions |
 | [PyPI](https://pypi.org/project/codex-image-gen/) | Published Python package |
-| [Release v0.2.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0) | Wheel and sdist artifacts |
+| [Release v0.2.1](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.1) | Wheel and sdist artifacts |
 
 ## Release
 
-`v0.2.0` is available on PyPI and as a GitHub Release with wheel and sdist
+`v0.2.1` is available on PyPI and as a GitHub Release with wheel and sdist
 artifacts.
 
 Install from PyPI:

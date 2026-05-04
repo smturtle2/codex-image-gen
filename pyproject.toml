@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codex-image-gen"
-version = "0.2.0"
+version = "0.2.1"
 description = "Generate images from Python through Codex OAuth Responses."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 authors = [
     { name = "Small Turtle 2" },
@@ -18,7 +18,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
