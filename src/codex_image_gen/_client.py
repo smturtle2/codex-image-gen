@@ -5,17 +5,19 @@ import binascii
 import json
 import mimetypes
 import os
-import subprocess
+import time
+import urllib.error
+import urllib.request
 from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from ._errors import (
-    CodexNotFoundError,
     CodexResponseParseError,
-    CodexResponsesError,
     ImageDecodeError,
     ImageGenerationNotFoundError,
+    OAuthResponsesError,
 )
 from ._types import GeneratedImage, ImageGenerationResult, PartialGeneratedImage
 
@@ -25,6 +27,9 @@ MaskInput = str | os.PathLike[str] | Mapping[str, str]
 _DEFAULT_MODEL = "gpt-5.5"
 _IMAGE_MODEL = "gpt-image-2"
 _IMAGE_TOOL_TYPE = "image_generation"
+_DEFAULT_OAUTH_BASE_URL = "https://chatgpt.com/backend-api/codex"
+_DEFAULT_OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
+_DEFAULT_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 _DEFAULT_INSTRUCTIONS = (
     "Use the image_generation tool when the user asks to draw, create, "
     "generate, or edit an image."
@@ -37,23 +42,21 @@ def generate_image(
     images: ImageInput | Iterable[ImageInput] | None = None,
     model: str = _DEFAULT_MODEL,
     size: str = "auto",
-    quality: str = "auto",
     output_format: str = "png",
     output_compression: int | None = None,
     background: str = "auto",
-    action: str = "auto",
     input_image_mask: MaskInput | None = None,
     moderation: str | None = None,
     partial_images: int | None = None,
     reasoning_effort: str | None = None,
     reasoning_summary: str | None = None,
     text_verbosity: str | None = None,
-    max_output_tokens: int | None = None,
     instructions: str | None = None,
     timeout: float | None = 300,
-    codex_bin: str = "codex",
+    oauth_base_url: str = _DEFAULT_OAUTH_BASE_URL,
+    auth_file: str | os.PathLike[str] | None = None,
 ) -> ImageGenerationResult:
-    """Generate an image by sending a Responses API payload to `codex responses`."""
+    """Generate an image through the Codex OAuth Responses bridge."""
 
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("prompt must be a non-empty string")
@@ -63,21 +66,23 @@ def generate_image(
         images=images,
         model=model,
         size=size,
-        quality=quality,
         output_format=output_format,
         output_compression=output_compression,
         background=background,
-        action=action,
         input_image_mask=input_image_mask,
         moderation=moderation,
         partial_images=partial_images,
         reasoning_effort=reasoning_effort,
         reasoning_summary=reasoning_summary,
         text_verbosity=text_verbosity,
-        max_output_tokens=max_output_tokens,
         instructions=instructions,
     )
-    raw_response = _run_codex_responses(payload, timeout=timeout, codex_bin=codex_bin)
+    raw_response = _run_oauth_responses(
+        payload,
+        timeout=timeout,
+        base_url=oauth_base_url,
+        auth_file=auth_file,
+    )
     return _parse_image_generation_response(
         raw_response,
         default_output_format=output_format,
@@ -90,18 +95,15 @@ def _build_payload(
     images: ImageInput | Iterable[ImageInput] | None,
     model: str,
     size: str,
-    quality: str,
     output_format: str,
     output_compression: int | None,
     background: str,
-    action: str,
     input_image_mask: MaskInput | None,
     moderation: str | None,
     partial_images: int | None,
     reasoning_effort: str | None,
     reasoning_summary: str | None,
     text_verbosity: str | None,
-    max_output_tokens: int | None,
     instructions: str | None,
 ) -> dict[str, Any]:
     if background == "transparent":
@@ -111,10 +113,8 @@ def _build_payload(
         "type": _IMAGE_TOOL_TYPE,
         "model": _IMAGE_MODEL,
         "size": size,
-        "quality": quality,
         "output_format": output_format,
         "background": background,
-        "action": action,
     }
 
     if input_image_mask is not None:
@@ -145,8 +145,6 @@ def _build_payload(
         payload["reasoning"] = reasoning
     if text_verbosity is not None:
         payload["text"] = {"verbosity": text_verbosity}
-    if max_output_tokens is not None:
-        payload["max_output_tokens"] = max_output_tokens
     return payload
 
 
@@ -227,51 +225,218 @@ def _path_to_data_url(path: Path) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
-def _run_codex_responses(
+def _run_oauth_responses(
     payload: Mapping[str, Any],
     *,
     timeout: float | None,
-    codex_bin: str,
+    base_url: str,
+    auth_file: str | os.PathLike[str] | None,
 ) -> dict[str, Any]:
-    stdin = json.dumps(payload, separators=(",", ":"))
+    headers = _oauth_headers(auth_file)
+    headers["Content-Type"] = "application/json"
+    headers["Accept"] = "text/event-stream"
+
+    endpoint = f"{base_url.rstrip('/')}/responses"
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint,
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+
     try:
-        completed = subprocess.run(
-            [codex_bin, "responses"],
-            input=stdin,
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            check=False,
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            stdout = response.read().decode(charset)
+    except urllib.error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        message = f"Codex OAuth Responses bridge returned HTTP {exc.code}"
+        if body_text:
+            message = f"{message}: {body_text}"
+        raise OAuthResponsesError(message, status=exc.code, body=body_text) from exc
+    except urllib.error.URLError as exc:
+        raise OAuthResponsesError(
+            f"Codex OAuth Responses bridge request failed: {exc.reason}"
+        ) from exc
+
+    return _parse_responses_stdout(stdout)
+
+
+def _oauth_headers(auth_file: str | os.PathLike[str] | None) -> dict[str, str]:
+    auth = _load_auth(auth_file)
+    tokens = auth.get("tokens")
+    if not isinstance(tokens, Mapping):
+        raise OAuthResponsesError("Codex auth file does not contain OAuth tokens")
+
+    access_token = _optional_str(tokens.get("access_token"))
+    refresh_token = _optional_str(tokens.get("refresh_token"))
+    id_token = _optional_str(tokens.get("id_token"))
+    account_id = _optional_str(tokens.get("account_id")) or _account_id_from_id_token(
+        id_token
+    )
+
+    last_refresh = _optional_str(auth.get("last_refresh"))
+    if refresh_token and _should_refresh(access_token, last_refresh):
+        refreshed = _refresh_tokens(refresh_token)
+        tokens = {
+            "id_token": refreshed.get("id_token") or id_token,
+            "access_token": refreshed["access_token"],
+            "refresh_token": refreshed.get("refresh_token") or refresh_token,
+            "account_id": _account_id_from_id_token(refreshed.get("id_token"))
+            or account_id,
+        }
+        auth["tokens"] = tokens
+        auth["last_refresh"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+        _write_auth(auth_file, auth)
+        access_token = _optional_str(tokens.get("access_token"))
+        account_id = _optional_str(tokens.get("account_id"))
+
+    if not access_token:
+        raise OAuthResponsesError(
+            "Codex OAuth access token not found; run `codex login`"
         )
+    if not account_id:
+        raise OAuthResponsesError("Codex OAuth account id not found; run `codex login`")
+
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "chatgpt-account-id": account_id,
+        "OpenAI-Beta": "responses=experimental",
+    }
+
+
+def _load_auth(auth_file: str | os.PathLike[str] | None) -> dict[str, Any]:
+    path = _auth_file_path(auth_file)
+    try:
+        data = json.loads(path.read_text("utf-8"))
     except FileNotFoundError as exc:
-        raise CodexNotFoundError(f"codex executable not found: {codex_bin}") from exc
+        raise OAuthResponsesError(f"Codex auth file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise OAuthResponsesError(f"Codex auth file is not valid JSON: {path}") from exc
+    if not isinstance(data, dict):
+        raise OAuthResponsesError(f"Codex auth file must contain a JSON object: {path}")
+    return data
 
-    if completed.returncode != 0:
-        stderr = completed.stderr.strip()
-        message = f"`{codex_bin} responses` exited with code {completed.returncode}"
-        if stderr:
-            message = f"{message}: {stderr}"
-        raise CodexResponsesError(
-            message,
-            returncode=completed.returncode,
-            stderr=stderr,
+
+def _write_auth(
+    auth_file: str | os.PathLike[str] | None,
+    auth: Mapping[str, Any],
+) -> None:
+    path = _auth_file_path(auth_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(auth, indent=2), encoding="utf-8")
+    path.chmod(0o600)
+
+
+def _auth_file_path(auth_file: str | os.PathLike[str] | None) -> Path:
+    if auth_file is not None:
+        return Path(auth_file).expanduser()
+    codex_home = os.environ.get("CODEX_HOME")
+    if codex_home:
+        return Path(codex_home).expanduser() / "auth.json"
+    return Path.home() / ".codex" / "auth.json"
+
+
+def _should_refresh(access_token: str | None, last_refresh: str | None) -> bool:
+    if not access_token:
+        return True
+    claims = _jwt_claims(access_token)
+    exp = claims.get("exp")
+    if isinstance(exp, (int, float)) and exp <= time.time() + 300:
+        return True
+    if last_refresh is None:
+        return False
+    value = last_refresh.replace("Z", "+00:00")
+    try:
+        refreshed_at = datetime.fromisoformat(value)
+    except ValueError:
+        return True
+    if refreshed_at.tzinfo is None:
+        refreshed_at = refreshed_at.replace(tzinfo=UTC)
+    return refreshed_at.timestamp() <= time.time() - 55 * 60
+
+
+def _refresh_tokens(refresh_token: str) -> dict[str, str]:
+    body = json.dumps(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": _DEFAULT_OAUTH_CLIENT_ID,
+            "scope": "openid profile email offline_access",
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        _DEFAULT_OAUTH_TOKEN_URL,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            refreshed = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        raise OAuthResponsesError(
+            f"Codex OAuth token refresh returned HTTP {exc.code}: {body_text}",
+            status=exc.code,
+            body=body_text,
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise OAuthResponsesError(
+            f"Codex OAuth token refresh failed: {exc.reason}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise OAuthResponsesError(
+            "Codex OAuth token refresh returned invalid JSON"
+        ) from exc
+
+    if not isinstance(refreshed, dict) or not isinstance(
+        refreshed.get("access_token"), str
+    ):
+        raise OAuthResponsesError(
+            "Codex OAuth token refresh did not return access_token"
         )
+    return refreshed
 
-    return _parse_codex_stdout(completed.stdout)
+
+def _account_id_from_id_token(id_token: str | None) -> str | None:
+    claims = _jwt_claims(id_token)
+    auth_claim = claims.get("https://api.openai.com/auth")
+    if isinstance(auth_claim, Mapping):
+        return _optional_str(auth_claim.get("chatgpt_account_id"))
+    return None
 
 
-def _parse_codex_stdout(stdout: str) -> dict[str, Any]:
+def _jwt_claims(token: str | None) -> dict[str, Any]:
+    if not token or "." not in token:
+        return {}
+    parts = token.split(".")
+    if len(parts) < 2:
+        return {}
+    payload = parts[1]
+    padded = payload + "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+        claims = json.loads(decoded)
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return claims if isinstance(claims, dict) else {}
+
+
+def _parse_responses_stdout(stdout: str) -> dict[str, Any]:
     try:
         parsed = json.loads(stdout)
     except json.JSONDecodeError:
-        return _parse_codex_stream(stdout)
+        return _parse_responses_stream(stdout)
 
     if not isinstance(parsed, dict):
-        raise CodexResponseParseError("codex responses JSON must be an object")
+        raise CodexResponseParseError("Responses bridge JSON must be an object")
     return parsed
 
 
-def _parse_codex_stream(stdout: str) -> dict[str, Any]:
+def _parse_responses_stream(stdout: str) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
     for raw_line in stdout.splitlines():
         line = raw_line.strip()
@@ -285,16 +450,16 @@ def _parse_codex_stream(stdout: str) -> dict[str, Any]:
             event = json.loads(line)
         except json.JSONDecodeError as exc:
             raise CodexResponseParseError(
-                "codex responses returned invalid streaming JSON"
+                "Responses bridge returned invalid streaming JSON"
             ) from exc
         if not isinstance(event, dict):
             raise CodexResponseParseError(
-                "codex responses streaming JSON events must be objects"
+                "Responses bridge streaming JSON events must be objects"
             )
         events.append(event)
 
     if not events:
-        raise CodexResponseParseError("codex responses returned no JSON events")
+        raise CodexResponseParseError("Responses bridge returned no JSON events")
 
     raw_response: dict[str, Any] = {"output": [], "_events": events}
     for event in events:
@@ -308,7 +473,13 @@ def _parse_codex_stream(stdout: str) -> dict[str, Any]:
         elif event_type == "response.completed":
             response = event.get("response")
             if isinstance(response, dict):
+                output = raw_response["output"]
+                partial_images = raw_response.get("_partial_images")
                 raw_response.update(response)
+                if not raw_response.get("output") and output:
+                    raw_response["output"] = output
+                if partial_images:
+                    raw_response["_partial_images"] = partial_images
 
     return raw_response
 

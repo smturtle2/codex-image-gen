@@ -9,9 +9,9 @@ name: CI
   workflow_dispatch:
     inputs:
       ref:
-        description: "Git ref to publish, for example v0.1.1"
+        description: "Git ref to publish, for example v0.2.0"
         required: true
-        default: "v0.1.1"
+        default: "v0.2.0"
 
 jobs:
   test:

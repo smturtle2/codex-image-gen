@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "codex-image-gen"
-version = "0.1.1"
-description = "Generate images from Python through Codex's Responses API bridge."
+version = "0.2.0"
+description = "Generate images from Python through Codex OAuth Responses."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

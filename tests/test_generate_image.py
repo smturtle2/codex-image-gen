@@ -1,15 +1,16 @@
 import base64
 import inspect
 import json
-import subprocess
+import urllib.request
 
 import pytest
 
 import codex_image_gen
+import codex_image_gen._client as client
 
 
 def _response_with_image(data=b"image-bytes"):
-    raw = {
+    return {
         "id": "resp_123",
         "output": [
             {
@@ -20,12 +21,6 @@ def _response_with_image(data=b"image-bytes"):
             }
         ],
     }
-    return raw, subprocess.CompletedProcess(
-        args=["codex", "responses"],
-        returncode=0,
-        stdout=json.dumps(raw),
-        stderr="",
-    )
 
 
 def _stream_with_image(data=b"image-bytes"):
@@ -47,45 +42,32 @@ def _stream_with_image(data=b"image-bytes"):
         },
         {
             "type": "response.completed",
-            "response": {"id": "resp_stream", "usage": {"total_tokens": 10}},
+            "response": {
+                "id": "resp_stream",
+                "output": [],
+                "usage": {"total_tokens": 10},
+            },
         },
     ]
     stdout = "\n".join(json.dumps(event) for event in events) + "\n"
-    return events, subprocess.CompletedProcess(
-        args=["codex", "responses"],
-        returncode=0,
-        stdout=stdout,
-        stderr="",
-    )
+    return events, client._parse_responses_stdout(stdout)
 
 
-def _completed(stdout, *, returncode=0, stderr=""):
-    return subprocess.CompletedProcess(
-        args=["codex", "responses"],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
-
-def _mock_run(monkeypatch, completed_process):
+def _mock_oauth(monkeypatch, raw_response):
     calls = []
 
-    def fake_run(cmd, **kwargs):
-        calls.append((cmd, kwargs))
-        return completed_process
+    def fake_run(payload, **kwargs):
+        calls.append((payload, kwargs))
+        return raw_response
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(client, "_run_oauth_responses", fake_run)
     return calls
 
 
 def _payload_from_call(calls):
     assert len(calls) == 1
-    _, kwargs = calls[0]
-    stdin = kwargs["input"]
-    if isinstance(stdin, bytes):
-        stdin = stdin.decode("utf-8")
-    return json.loads(stdin)
+    payload, _ = calls[0]
+    return payload
 
 
 def _user_content(payload):
@@ -110,15 +92,15 @@ def _assert_codex_payload_defaults(payload):
 def test_text_only_generation_builds_codex_responses_call_and_decodes_image(
     monkeypatch,
 ):
-    raw_response, completed = _response_with_image(b"\x89PNG\r\nimage-data")
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image(b"\x89PNG\r\nimage-data")
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     result = codex_image_gen.generate_image("draw a red cube")
 
-    cmd, kwargs = calls[0]
-    assert cmd[:2] == ["codex", "responses"]
+    _, kwargs = calls[0]
     assert kwargs["timeout"] == 300
-    assert kwargs["check"] is False
+    assert kwargs["base_url"] == "https://chatgpt.com/backend-api/codex"
+    assert kwargs["auth_file"] is None
 
     payload = _payload_from_call(calls)
     _assert_codex_payload_defaults(payload)
@@ -130,10 +112,8 @@ def test_text_only_generation_builds_codex_responses_call_and_decodes_image(
         "type": "image_generation",
         "model": "gpt-image-2",
         "size": "auto",
-        "quality": "auto",
         "output_format": "png",
         "background": "auto",
-        "action": "auto",
     }
 
     assert result.response_id == "resp_123"
@@ -148,8 +128,8 @@ def test_text_only_generation_builds_codex_responses_call_and_decodes_image(
 
 
 def test_streaming_ndjson_response_decodes_image(monkeypatch):
-    events, completed = _stream_with_image(b"stream-image-data")
-    _mock_run(monkeypatch, completed)
+    events, raw_response = _stream_with_image(b"stream-image-data")
+    _mock_oauth(monkeypatch, raw_response)
 
     result = codex_image_gen.generate_image("draw a blue circle")
 
@@ -172,42 +152,43 @@ def test_generate_image_signature_excludes_removed_image_tool_parameters():
     assert "input_fidelity" not in signature.parameters
     assert "previous_response_id" not in signature.parameters
     assert "image_generation_call_ids" not in signature.parameters
+    assert "backend" not in signature.parameters
+    assert "codex_bin" not in signature.parameters
+    assert "max_output_tokens" not in signature.parameters
+    assert "quality" not in signature.parameters
+    assert "action" not in signature.parameters
 
 
 def test_reasoning_and_text_options_are_forwarded(monkeypatch):
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image(
         "draw carefully",
         reasoning_effort="high",
         reasoning_summary="auto",
         text_verbosity="low",
-        max_output_tokens=4096,
     )
 
     payload = _payload_from_call(calls)
     assert payload["reasoning"] == {"effort": "high", "summary": "auto"}
     assert payload["text"] == {"verbosity": "low"}
-    assert payload["max_output_tokens"] == 4096
 
 
 def test_all_gpt_image_2_tool_parameters_are_forwarded(monkeypatch, tmp_path):
     mask_path = tmp_path / "mask.png"
     mask_path.write_bytes(b"mask-bytes")
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image(
         "edit this product photo",
         images=["data:image/png;base64,AAAA"],
         model="gpt-custom",
         size="1024x1792",
-        quality="high",
         output_format="webp",
         output_compression=73,
         background="opaque",
-        action="edit",
         input_image_mask=mask_path,
         moderation="low",
         partial_images=2,
@@ -220,10 +201,8 @@ def test_all_gpt_image_2_tool_parameters_are_forwarded(monkeypatch, tmp_path):
         "type": "image_generation",
         "model": "gpt-image-2",
         "size": "1024x1792",
-        "quality": "high",
         "output_format": "webp",
         "background": "opaque",
-        "action": "edit",
         "input_image_mask": {
             "image_url": (
                 "data:image/png;base64,"
@@ -237,7 +216,7 @@ def test_all_gpt_image_2_tool_parameters_are_forwarded(monkeypatch, tmp_path):
 
 
 def test_transparent_background_raises_for_gpt_image_2(monkeypatch):
-    calls = _mock_run(monkeypatch, _response_with_image()[1])
+    calls = _mock_oauth(monkeypatch, _response_with_image())
 
     with pytest.raises(ValueError, match="gpt-image-2.*transparent"):
         codex_image_gen.generate_image("make a logo", background="transparent")
@@ -246,8 +225,8 @@ def test_transparent_background_raises_for_gpt_image_2(monkeypatch):
 
 
 def test_flexible_size_strings_are_forwarded(monkeypatch):
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image("wide poster", size="2048x1024")
 
@@ -257,8 +236,8 @@ def test_flexible_size_strings_are_forwarded(monkeypatch):
 
 
 def test_input_image_mask_accepts_file_id_and_image_url(monkeypatch):
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image(
         "mask by file",
@@ -284,8 +263,8 @@ def test_local_image_path_becomes_data_url_with_inferred_mime_type(
 ):
     image_path = tmp_path / "reference.jpg"
     image_path.write_bytes(b"local-image-bytes")
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image("use this reference", images=[image_path])
 
@@ -303,8 +282,8 @@ def test_local_image_path_becomes_data_url_with_inferred_mime_type(
 
 
 def test_url_data_url_and_file_id_images_are_accepted_in_content(monkeypatch):
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
     data_url = "data:image/webp;base64,AAAA"
 
     codex_image_gen.generate_image(
@@ -337,8 +316,8 @@ def test_url_data_url_and_file_id_images_are_accepted_in_content(monkeypatch):
 def test_image_mapping_path_is_accepted(monkeypatch, tmp_path):
     image_path = tmp_path / "reference.png"
     image_path.write_bytes(b"path-image")
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     codex_image_gen.generate_image(
         "use mapped image path",
@@ -378,8 +357,8 @@ def test_output_compression_only_included_for_jpeg_and_webp(
     expected_mime_type,
     should_include_compression,
 ):
-    _, completed = _response_with_image()
-    calls = _mock_run(monkeypatch, completed)
+    raw_response = _response_with_image()
+    calls = _mock_oauth(monkeypatch, raw_response)
 
     result = codex_image_gen.generate_image(
         "compress if supported",
@@ -396,37 +375,91 @@ def test_output_compression_only_included_for_jpeg_and_webp(
     assert result.images[0].mime_type == expected_mime_type
 
 
-def test_file_not_found_becomes_codex_not_found_error(monkeypatch):
-    def fake_run(cmd, **kwargs):
-        raise FileNotFoundError("codex")
+def test_oauth_backend_error_is_propagated(monkeypatch):
+    calls = []
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    def fake_run(payload, **kwargs):
+        calls.append((payload, kwargs))
+        raise codex_image_gen.OAuthResponsesError("no auth", status=401)
 
-    with pytest.raises(codex_image_gen.CodexNotFoundError):
-        codex_image_gen.generate_image("hello")
+    monkeypatch.setattr(client, "_run_oauth_responses", fake_run)
 
-
-def test_nonzero_returncode_becomes_codex_responses_error(monkeypatch):
-    calls = _mock_run(monkeypatch, _completed("", returncode=2, stderr="no auth"))
-
-    with pytest.raises(codex_image_gen.CodexResponsesError) as exc_info:
+    with pytest.raises(codex_image_gen.OAuthResponsesError) as exc_info:
         codex_image_gen.generate_image("hello")
 
     assert len(calls) == 1
     assert "no auth" in str(exc_info.value)
 
 
-def test_malformed_json_becomes_codex_response_parse_error(monkeypatch):
-    _mock_run(monkeypatch, _completed("{not valid json"))
+def test_run_oauth_responses_posts_to_codex_backend(monkeypatch, tmp_path):
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    "access_token": "access-token",
+                    "account_id": "account-id",
+                    "refresh_token": "refresh-token",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    raw_response = _response_with_image()
+    calls = []
 
+    class FakeHeaders:
+        def get_content_charset(self):
+            return "utf-8"
+
+    class FakeResponse:
+        headers = FakeHeaders()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return json.dumps(raw_response).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout))
+        return FakeResponse()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    result = client._run_oauth_responses(
+        {"model": "gpt-5.5", "stream": True},
+        timeout=123,
+        base_url="https://chatgpt.com/backend-api/codex",
+        auth_file=auth_file,
+    )
+
+    request, timeout = calls[0]
+    assert result == raw_response
+    assert timeout == 123
+    assert request.full_url == "https://chatgpt.com/backend-api/codex/responses"
+    assert request.get_method() == "POST"
+    assert request.headers["Authorization"] == "Bearer access-token"
+    assert request.headers["Chatgpt-account-id"] == "account-id"
+    assert request.headers["Openai-beta"] == "responses=experimental"
+    assert json.loads(request.data.decode("utf-8")) == {
+        "model": "gpt-5.5",
+        "stream": True,
+    }
+
+
+def test_malformed_json_becomes_codex_response_parse_error(monkeypatch):
     with pytest.raises(codex_image_gen.CodexResponseParseError):
-        codex_image_gen.generate_image("hello")
+        client._parse_responses_stdout("{not valid json")
 
 
 def test_missing_image_generation_call_becomes_image_generation_not_found_error(
     monkeypatch,
 ):
-    _mock_run(monkeypatch, _completed(json.dumps({"id": "resp_123", "output": []})))
+    _mock_oauth(monkeypatch, {"id": "resp_123", "output": []})
 
     with pytest.raises(codex_image_gen.ImageGenerationNotFoundError):
         codex_image_gen.generate_image("hello")
@@ -443,7 +476,7 @@ def test_bad_base64_becomes_image_decode_error(monkeypatch):
             }
         ],
     }
-    _mock_run(monkeypatch, _completed(json.dumps(raw)))
+    _mock_oauth(monkeypatch, raw)
 
     with pytest.raises(codex_image_gen.ImageDecodeError):
         codex_image_gen.generate_image("hello")
@@ -465,9 +498,12 @@ def test_bad_partial_image_base64_becomes_image_decode_error(monkeypatch):
             },
         },
     ]
-    _mock_run(
+    raw_response = client._parse_responses_stdout(
+        "\n".join(json.dumps(event) for event in events)
+    )
+    _mock_oauth(
         monkeypatch,
-        _completed("\n".join(json.dumps(event) for event in events)),
+        raw_response,
     )
 
     with pytest.raises(codex_image_gen.ImageDecodeError):

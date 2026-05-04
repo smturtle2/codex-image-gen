@@ -5,21 +5,23 @@ class CodexImageGenError(Exception):
     """Base exception for codex-image-gen errors."""
 
 
-class CodexNotFoundError(CodexImageGenError):
-    """Raised when the Codex CLI executable cannot be found."""
+class OAuthResponsesError(CodexImageGenError):
+    """Raised when the Codex OAuth Responses bridge returns an error."""
 
-
-class CodexResponsesError(CodexImageGenError):
-    """Raised when `codex responses` exits with a non-zero status."""
-
-    def __init__(self, message: str, *, returncode: int, stderr: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status: int | None = None,
+        body: str = "",
+    ) -> None:
         super().__init__(message)
-        self.returncode = returncode
-        self.stderr = stderr
+        self.status = status
+        self.body = body
 
 
 class CodexResponseParseError(CodexImageGenError):
-    """Raised when `codex responses` returns malformed JSON."""
+    """Raised when the Responses bridge returns malformed JSON."""
 
 
 class ImageGenerationNotFoundError(CodexImageGenError):

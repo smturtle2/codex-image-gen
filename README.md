@@ -2,7 +2,7 @@
   <img src="./codex-image-gen-hero.png" alt="codex-image-gen hero image" width="900">
 
   <h1>codex-image-gen</h1>
-  <p><strong>Generate images from Python through Codex responses</strong></p>
+  <p><strong>Generate images from Python through Codex OAuth Responses</strong></p>
 
   <p>
     <a href="./README.md">English</a> ·
@@ -11,7 +11,7 @@
 
   <p>
     <a href="https://github.com/smturtle2/codex-image-gen/actions/workflows/workflow.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/smturtle2/codex-image-gen/workflow.yml?branch=main&label=tests"></a>
-    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
+    <a href="https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0"><img alt="Release" src="https://img.shields.io/github/v/release/smturtle2/codex-image-gen?label=release"></a>
     <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/smturtle2/codex-image-gen"></a>
     <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab">
     <img alt="Model" src="https://img.shields.io/badge/gpt--image--2-enabled-6f42c1">
@@ -22,12 +22,12 @@
 ---
 
 `codex-image-gen` is a tiny, dependency-clean Python library for generating
-high-quality images through the Codex CLI's `responses` command and the
-Responses API `image_generation` tool.
+high-quality images through Codex OAuth and the Responses API
+`image_generation` tool.
 
-It uses your existing Codex login, sends a raw Responses payload to
-`codex responses`, and returns Python dataclasses with decoded image bytes and
-metadata.
+It uses your existing Codex login from `~/.codex/auth.json`, sends a raw
+Responses payload to the Codex OAuth bridge, and returns Python dataclasses
+with decoded image bytes and metadata. It does not use `OPENAI_API_KEY`.
 
 ## Demo
 
@@ -60,7 +60,6 @@ from codex_image_gen import generate_image
 result = generate_image(
     "A serene mountain landscape with a lake and pine trees, sunset light",
     size="1024x1024",
-    quality="low",
     output_format="png",
 )
 
@@ -79,9 +78,9 @@ That's it. Your image is saved locally.
 
 | | |
 | --- | --- |
-| **High-quality images**<br>Powered by `gpt-image-2` through Codex responses. | **Multiple input types**<br>Use local paths, URLs, data URLs, file IDs, and detail mappings. |
-| **Robust and reliable**<br>Clear exceptions for Codex failures, invalid JSON, missing image results, and bad base64. | **Live-tested parameter surface**<br>Forward the gpt-image-2 options that work through the current Codex bridge. |
-| **Typed results**<br>Frozen dataclasses with image bytes, MIME type, response ID, call ID, revised prompt, and partial images. | **Zero heavy deps**<br>Runtime uses only the Python standard library and the Codex CLI. |
+| **High-quality images**<br>Powered by `gpt-image-2` through Codex OAuth Responses. | **Multiple input types**<br>Use local paths, URLs, data URLs, file IDs, and detail mappings. |
+| **Robust and reliable**<br>Clear exceptions for OAuth bridge failures, invalid JSON, missing image results, and bad base64. | **Focused parameter surface**<br>Forward the gpt-image-2 options used by the Codex bridge. |
+| **Typed results**<br>Frozen dataclasses with image bytes, MIME type, response ID, call ID, revised prompt, and partial images. | **Zero heavy deps**<br>Runtime uses only the Python standard library. |
 
 ## API Highlights
 
@@ -92,21 +91,19 @@ generate_image(
     images=None,
     model="gpt-5.5",
     size="auto",
-    quality="auto",
     output_format="png",
     output_compression=None,
     background="auto",
-    action="auto",
     input_image_mask=None,
     moderation=None,
     partial_images=None,
     reasoning_effort=None,
     reasoning_summary=None,
     text_verbosity=None,
-    max_output_tokens=None,
     instructions=None,
     timeout=300,
-    codex_bin="codex",
+    oauth_base_url="https://chatgpt.com/backend-api/codex",
+    auth_file=None,
 )
 ```
 
@@ -117,9 +114,9 @@ generate_image(
 - Masked edits use `input_image_mask`; pass a mask as a local path, URL,
   `data:` URL, or file ID. The mask must match the edited image's dimensions
   and format, stay under 50 MB, and include an alpha channel.
-- Reasoning effort, reasoning summaries, text verbosity, max output tokens,
-  timeouts, moderation, output format, compression, and custom instructions are
-  first-class options.
+- Size, output format, output compression, background, moderation, partial
+  images, reasoning settings, text verbosity, timeouts, and custom instructions
+  are first-class options.
 
 ## Examples
 
@@ -132,7 +129,6 @@ result = generate_image(
         "reference.png",
         {"file_id": "file_123", "detail": "high"},
     ],
-    action="edit",
     output_format="webp",
     output_compression=75,
 )
@@ -154,7 +150,6 @@ result = generate_image(
     "Replace only the masked logo area with a white star",
     images=["product.png"],
     input_image_mask="mask_alpha.png",
-    action="edit",
     background="opaque",
 )
 
@@ -173,8 +168,8 @@ for partial in result.partial_images:
     Path(f"partial-{partial.index}.png").write_bytes(partial.data)
 ```
 
-Partial images are collected after `codex responses` exits. This function does
-not expose live streaming callbacks.
+Partial images are collected after the streaming Responses request completes.
+This function does not expose live streaming callbacks.
 
 ### Reasoning Settings
 
@@ -184,7 +179,6 @@ result = generate_image(
     reasoning_effort="high",
     reasoning_summary="auto",
     text_verbosity="low",
-    max_output_tokens=4096,
 )
 ```
 
@@ -193,19 +187,19 @@ result = generate_image(
 
 ## Compatibility
 
-This library intentionally exposes only the parameters that worked through the
-current `codex responses` bridge in live tests.
+This library intentionally exposes only the parameters used by the Codex
+Responses bridge.
 
 - The default mainline Responses model is `gpt-5.5`.
 - The image generation tool always sends `model="gpt-image-2"`.
 - `input_image_mask` is exposed because it is documented for the Responses
-  `image_generation` tool and was live-tested through the Codex bridge. The
-  library forwards your mask; it does not synthesize the required alpha channel.
+  `image_generation` tool. The library forwards your mask; it does not
+  synthesize the required alpha channel.
 - `background="transparent"` is rejected before calling Codex.
 - `input_fidelity` is not exposed because `gpt-image-2` rejects it.
 - `previous_response_id` and previous `image_generation_call` item references
-  are not exposed because Codex requires `store=false`; prior items are not
-  persisted. Use image bytes, local files, URLs, or file IDs for follow-up edits.
+  are not exposed. Use image bytes, local files, URLs, or file IDs for
+  follow-up edits.
 
 ## Development
 
@@ -228,11 +222,11 @@ uv build
 | [Issues](https://github.com/smturtle2/codex-image-gen/issues) | Report bugs and request features |
 | [Discussions](https://github.com/smturtle2/codex-image-gen/discussions) | Ask questions |
 | [PyPI](https://pypi.org/project/codex-image-gen/) | Published Python package |
-| [Release v0.1.1](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.1.1) | Wheel and sdist artifacts |
+| [Release v0.2.0](https://github.com/smturtle2/codex-image-gen/releases/tag/v0.2.0) | Wheel and sdist artifacts |
 
 ## Release
 
-`v0.1.1` is available on PyPI and as a GitHub Release with wheel and sdist
+`v0.2.0` is available on PyPI and as a GitHub Release with wheel and sdist
 artifacts.
 
 Install from PyPI:

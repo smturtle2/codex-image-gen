@@ -3,23 +3,21 @@
 from ._client import generate_image
 from ._errors import (
     CodexImageGenError,
-    CodexNotFoundError,
     CodexResponseParseError,
-    CodexResponsesError,
     ImageDecodeError,
     ImageGenerationNotFoundError,
+    OAuthResponsesError,
 )
 from ._types import GeneratedImage, ImageGenerationResult, PartialGeneratedImage
 
 __all__ = [
     "CodexImageGenError",
-    "CodexNotFoundError",
     "CodexResponseParseError",
-    "CodexResponsesError",
     "GeneratedImage",
     "ImageDecodeError",
     "ImageGenerationNotFoundError",
     "ImageGenerationResult",
+    "OAuthResponsesError",
     "PartialGeneratedImage",
     "generate_image",
 ]
